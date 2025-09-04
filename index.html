@@ -129,66 +129,67 @@
     </footer>
 
     <script>
-        // ページ読み込み時に今日の日付を設定
-        window.onload = function() {
-            const today = new Date();
-            const year = today.getFullYear();
-            let month = today.getMonth() + 1;
-            let day = today.getDate();
-            
-            // 月と日を2桁にフォーマット
-            month = month < 10 ? '0' + month : month;
-            day = day < 10 ? '0' + day : day;
-            
-            document.getElementById('date').value = `${year}-${month}-${day}`;
-            document.getElementById('time').value = '12:00';
-        };
-        
-        function calculate() {
-            // 入力値の取得
-            const H = parseFloat(document.getElementById('height').value);
-            const S = parseFloat(document.getElementById('shadow').value);
-            const dateStr = document.getElementById('date').value;
-            const timeStr = document.getElementById('time').value;
-            
-            // 日付と時間の処理
-            const [year, month, day] = dateStr.split('-').map(Number);
-            const [hour, minute] = timeStr.split(':').map(Number);
-            
-            // 観測時間の計算（10進数時間）
-            const decimalHour = hour + minute / 60;
-            
-            // 冬至からの日数計算（簡単のため12月22日を冬至とする）
-            const winterSolstice = new Date(year, 11, 22); // 月は0始まりなので11=12月
-            const observationDate = new Date(year, month - 1, day);
-            const daysFromSolstice = Math.floor((observationDate - winterSolstice) / (1000 * 60 * 60 * 24));
-            
-            // 計算処理
-            const altitudeRad = Math.atan(H / S);
-            const altitudeDeg = altitudeRad * (180 / Math.PI);
-            const latitude = Math.abs(90 - altitudeDeg);
-            
-            // 経度計算（日本標準時135度を基準）
-            const timeLag = decimalHour - 12;
-            const longitude = 135 - timeLag * 15;
-            
-            // 太陽赤緯計算
-            const sunAngle = (270 + 360/365.24 * daysFromSolstice) % 360;
-            const rad = sunAngle * (Math.PI / 180);
-            const epsilon = 23.4 * (Math.PI / 180);
-            const delta = Math.asin(Math.sin(epsilon) * Math.sin(rad));
-            const solarDeclination = delta * (180 / Math.PI);
-            const sunAngleResult = 90 - solarDeclination;
-            
-            // 結果の表示
-            document.getElementById('altitude').textContent = `南中高度: ${altitudeDeg.toFixed(2)} 度`;
-            document.getElementById('latitude').textContent = `推定緯度: ${latitude.toFixed(2)} 度`;
-            document.getElementById('longitude').textContent = `推定経度: ${longitude.toFixed(2)} 度`;
-            document.getElementById('sunAngle').textContent = `太陽赤緯: ${sunAngleResult.toFixed(2)} 度`;
-            
-            // 結果を表示
-            document.getElementById('result').style.display = 'block';
-        }
-    </script>
+    // ページ読み込み時に今日の日付を設定
+    window.onload = function() {
+        const today = new Date();
+        const year = today.getFullYear();
+        let month = today.getMonth() + 1;
+        let day = today.getDate();
+        month = month < 10 ? '0' + month : month;
+        day = day < 10 ? '0' + day : day;
+        document.getElementById('date').value = `${year}-${month}-${day}`;
+        document.getElementById('time').value = '12:00';
+    };
+
+    function calculate() {
+        // 入力値の取得
+        const H = parseFloat(document.getElementById('height').value);
+        const S = parseFloat(document.getElementById('shadow').value);
+        const dateStr = document.getElementById('date').value;
+        const timeStr = document.getElementById('time').value;
+
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const [hour, minute] = timeStr.split(':').map(Number);
+
+        // 南中高度を計算（棒の高さと影）
+        const altitudeRad = Math.atan(H / S);
+        const altitudeDeg = altitudeRad * (180 / Math.PI);
+
+        // === 空間ベクトル法で太陽赤緯を計算 ===
+        // 1. 観測日の通日 N を求める
+        const obsDate = new Date(year, month - 1, day);
+        const startOfYear = new Date(year, 0, 0);
+        const diff = obsDate - startOfYear;
+        const oneDay = 1000 * 60 * 60 * 24;
+        const N = Math.floor(diff / oneDay);
+
+        // 2. 黄経 λ（近似式：春分を0度として1日約0.9856度進む）
+        const lambda = (280.46 + 0.9856474 * N) % 360;
+
+        // 3. 赤道傾斜角 ε
+        const epsilon = 23.44 * Math.PI / 180;
+
+        // 4. 赤緯 δ = asin(sin ε * sin λ)
+        const lambdaRad = lambda * Math.PI / 180;
+        const delta = Math.asin(Math.sin(epsilon) * Math.sin(lambdaRad));
+        const deltaDeg = delta * 180 / Math.PI;
+
+        // 5. 緯度 φ = 90 + δ - 南中高度
+        const latitude = 90 + deltaDeg - altitudeDeg;
+
+        // 6. 経度（時刻から推定：ここでは JST=135° を基準）
+        const decimalHour = hour + minute / 60;
+        const timeLag = decimalHour - 12; // 太陽南中との差
+        const longitude = 135 - timeLag * 15;
+
+        // 結果の表示
+        document.getElementById('altitude').textContent = `南中高度: ${altitudeDeg.toFixed(2)} 度`;
+        document.getElementById('latitude').textContent = `推定緯度: ${latitude.toFixed(3)} 度`;
+        document.getElementById('longitude').textContent = `推定経度: ${longitude.toFixed(3)} 度`;
+        document.getElementById('sunAngle').textContent = `太陽赤緯 (空間ベクトル法): ${deltaDeg.toFixed(3)} 度`;
+
+        document.getElementById('result').style.display = 'block';
+    }
+</script>
 </body>
 </html>
